@@ -1,4 +1,4 @@
-"""TTS layer: engine protocol, adapters (stub/piper/kokoro), long-text synthesis, cache."""
+"""TTS layer: engine protocol, adapters (stub/piper/kokoro/luxtts), long-text synthesis, cache."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from .base import (
 )
 from .cache import TTSCache
 from .kokoro import KOKORO_VOICES, KokoroEngine
+from .luxtts import LuxTTSEngine
 from .piper import PIPER_LOCALES, PiperEngine
 from .stub import StubEngine
 
@@ -20,6 +21,7 @@ __all__ = [
     "KOKORO_VOICES",
     "PIPER_LOCALES",
     "KokoroEngine",
+    "LuxTTSEngine",
     "PiperEngine",
     "Segment",
     "StubEngine",

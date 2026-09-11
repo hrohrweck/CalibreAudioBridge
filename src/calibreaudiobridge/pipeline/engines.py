@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ..tts import KokoroEngine, PiperEngine, StubEngine, TTSEngine, TTSUnavailableError
+from ..tts import (
+    KokoroEngine,
+    LuxTTSEngine,
+    PiperEngine,
+    StubEngine,
+    TTSEngine,
+    TTSUnavailableError,
+)
 
 if TYPE_CHECKING:
     from ..config import TTSConfig
@@ -43,8 +50,13 @@ def _make_stub(_cfg: TTSConfig) -> TTSEngine:
     return StubEngine()
 
 
+def _make_luxtts(cfg: TTSConfig) -> TTSEngine:
+    return LuxTTSEngine(cfg)
+
+
 _FACTORIES = {
     "kokoro": _make_kokoro,
     "piper": _make_piper,
     "stub": _make_stub,
+    "luxtts": _make_luxtts,
 }
