@@ -122,3 +122,10 @@ See [`docs/scheduling.md`](docs/scheduling.md) for launchd and advanced options.
 
 Generated audio is for personal listening of books you own. Don't distribute the
 output; book and model licenses apply.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Third-party components retain their own licenses:
+TTS engines (Kokoro/Piper/LuxTTS) are invoked at runtime, not bundled; the GPL
+`piper1-gpl` fork is used only as a separate subprocess binary (see
+[docs/engines.md](docs/engines.md)).
