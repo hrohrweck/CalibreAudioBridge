@@ -1,0 +1,122 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "calibreaudiobridge"
+version = "0.1.0"
+description = "Scheduled bridge that turns Calibre books into audiobooks and audio summaries using configurable (local-first) LLMs and open-source TTS."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Horst Rohrweck" }]
+dependencies = [
+    # Project decision (PLAN.md D3): httpx over httpx2 — MockTransport-based
+    # hermetic LLM-client tests depend on it.
+    "httpx>=0.27",
+    "num2words>=0.5.13",
+    "platformdirs>=4.2",
+    "pydantic>=2.7",
+    "rich>=13.7",
+    "tiktoken>=0.7",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+kokoro = ["kokoro>=0.8.4", "soundfile>=0.12"]
+dev = ["basedpyright>=1.18", "pytest>=8.2", "ruff>=0.6"]
+
+[project.scripts]
+cab = "calibreaudiobridge.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/calibreaudiobridge"]
+
+[tool.basedpyright]
+typeCheckingMode = "all"
+include = ["src", "tests"]
+extraPaths = ["."]
+# Boundary reality: json.loads / sqlite3 / subprocess / tomllib emit Any at the
+# edge; we confine and convert at typed wrappers instead of sprinkling casts.
+reportAny = false
+reportExplicitAny = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportUnknownMemberType = false
+reportUnknownParameterType = false
+# Side-effectful stdlib calls (sqlite execute, shutil.copytree) need no `_ =`.
+reportUnusedCallResult = false
+reportImplicitStringConcatenation = false
+# Private attributes are inferred accurately from __init__ assignments.
+reportUnannotatedClassAttribute = false
+# First-party src-layout imports don't need stub files.
+reportMissingTypeStubs = false
+# Defensive catch-alls after exhaustive enum matches (assert_never) are intentional.
+reportUnnecessaryComparison = false
+
+[[tool.basedpyright.executionEnvironments]]
+root = "tests"
+# Fixture-injected parameters and builders are conventionally untyped in pytest.
+reportMissingParameterType = false
+reportUnknownParameterType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+reportMissingTypeArgument = false
+reportUnnecessaryIsInstance = false
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",  # trailing commas handled by formatter
+    "D203",    # incompatible with D211
+    "D213",    # incompatible with D212
+    "TID252",  # relative imports within src package are fine
+    # Project policy: typed-exception pattern embeds context strings by design.
+    "EM101",
+    "EM102",
+    "TRY003",
+    # No copyright headers in this project.
+    "CPY001",
+    # calibredb/ebook-convert invocation requires subprocess without shell.
+    "S603",
+    # XML inputs are produced by calibre's own ebook-convert, not arbitrary hosts.
+    "S314",
+    # Trivial constructors are documented via the class docstring.
+    "D107",
+    # Dunder context-manager methods are documented via the class docstring.
+    "D105",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/calibreaudiobridge/cli.py" = [
+    "FBT001", # typer boolean flags are positional in the decorator API
+    "FBT002",
+    # typer evaluates annotations at runtime (inspect eval_str=True):
+    "TC003",
+]
+"tests/**" = [
+    "S101",    # assert is the point of tests
+    "D",       # test names are the docs
+    "PLR2004", # magic numbers are test data
+    "SLF001",  # testing internals
+    "ANN401",  # pytest fixtures legitimately take Any
+    "ANN001",  # fixture factories
+    "ARG002",  # fixture params unused by design
+    "S108",    # tmp paths
+    "N801",    # Test<Class>_when_<Condition> naming is deliberate
+    "TC001",   # fixtures import Path/others for runtime use
+    "TC002",
+    "TC003",
+    "PLR0913", # fixture factories take config knobs
+    "FBT001",  # kw-only booleans in factories
+    "FBT002",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["live: requires real engines or a real calibre installation"]

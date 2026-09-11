@@ -1,0 +1,43 @@
+#!/usr/bin/env python3
+"""Fake ebook-convert. Controlled by env vars:
+
+FAKE_EBOOKCONVERT_OEB   directory copied to a folder output (no extension)
+FAKE_EBOOKCONVERT_TXT   content written to a .txt output
+FAKE_EBOOKCONVERT_DRM=1 exit 1 with a DRM error
+FAKE_EBOOKCONVERT_FAIL=1 exit 1 with a generic error
+"""
+
+from __future__ import annotations
+
+import os
+import shutil
+import sys
+from pathlib import Path
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if len(args) < 2:
+        print("usage: ebook-convert input output", file=sys.stderr)
+        return 2
+    out = Path(args[1])
+    if os.environ.get("FAKE_EBOOKCONVERT_DRM"):
+        print("Conversion Error: DRM-protected book, refusing to convert", file=sys.stderr)
+        return 1
+    if os.environ.get("FAKE_EBOOKCONVERT_FAIL"):
+        print("Conversion Error: generic failure", file=sys.stderr)
+        return 1
+    if out.suffix:  # file target, e.g. book.txt
+        out.write_text(os.environ.get("FAKE_EBOOKCONVERT_TXT", ""), encoding="utf-8")
+        return 0
+    # folder target = OEB structure
+    oeb_src = os.environ.get("FAKE_EBOOKCONVERT_OEB", "")
+    if oeb_src:
+        shutil.copytree(oeb_src, out)
+        return 0
+    out.mkdir(parents=True, exist_ok=True)  # structure-less conversion
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

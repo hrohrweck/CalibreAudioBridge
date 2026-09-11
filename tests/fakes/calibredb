@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Fake calibredb for tests. Controlled by env vars:
+
+FAKE_CALIBRE_BOOKS     path to JSON array of book rows
+FAKE_CALIBRE_LOG       path to jsonl call log (one {"target","sub","opts"} per line)
+FAKE_CALIBRE_LOCK=1    simulate a running calibre holding the lock
+FAKE_CUSTOM_COLUMNS    "existing" -> add_custom_column reports already-exists
+FAKE_CALIBRE_EXPORT_SRC  file copied into --to-dir on export
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import sys
+from pathlib import Path
+
+LOCK_MSG = (
+    "Another calibre program such as calibre-server or the main calibre program "
+    "is running. Having multiple programs that can make changes to a calibre "
+    "library running at the same time is a bad idea."
+)
+
+
+def _opt(opts: list[str], name: str) -> str | None:
+    for i, arg in enumerate(opts):
+        if arg == name and i + 1 < len(opts):
+            return opts[i + 1]
+        if arg.startswith(name + "="):
+            return arg.split("=", 1)[1]
+    return None
+
+
+def _log(target: str, sub: str, opts: list[str]) -> None:
+    log_path = os.environ.get("FAKE_CALIBRE_LOG")
+    if log_path:
+        with open(log_path, "a") as fh:
+            fh.write(json.dumps({"target": target, "sub": sub, "opts": opts}) + "\n")
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    target: str | None = None
+    rest: list[str] = []
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--with-library" and i + 1 < len(args):
+            target = args[i + 1]
+            i += 2
+            continue
+        if arg.startswith("--with-library="):
+            target = arg.split("=", 1)[1]
+            i += 1
+            continue
+        rest.append(arg)
+        i += 1
+    sub = rest[0] if rest else ""
+    opts = rest[1:]
+    _log(target or "", sub, opts)
+
+    if target and target.startswith("http"):
+        if sub == "add_custom_column":
+            print(
+                "add_custom_column is not available when connected to a calibre server",
+                file=sys.stderr,
+            )
+            return 1
+        if os.environ.get("FAKE_SERVER_DOWN"):
+            print("error: connection refused (fake server down)", file=sys.stderr)
+            return 1
+        if target.endswith("/#-") or target.endswith("/#"):
+            print(json.dumps([{"id": "default", "name": "Default Library"}]))
+            return 0
+
+    if os.environ.get("FAKE_CALIBRE_LOCK") or (target and "locked" in target):
+        print(LOCK_MSG, file=sys.stderr)
+        return 1
+
+    match sub:
+        case "list":
+            books_path = os.environ.get("FAKE_CALIBRE_BOOKS", "")
+            books = (
+                json.loads(Path(books_path).read_text())
+                if books_path and Path(books_path).is_file()
+                else []
+            )
+            print(json.dumps(books))
+            return 0
+        case "export":
+            src = os.environ.get("FAKE_CALIBRE_EXPORT_SRC", "")
+            to_dir = _opt(opts, "--to-dir") or "."
+            Path(to_dir).mkdir(parents=True, exist_ok=True)
+            shutil.copy(src, str(Path(to_dir) / Path(src).name))
+            return 0
+        case "add_custom_column":
+            if os.environ.get("FAKE_CUSTOM_COLUMNS") == "existing":
+                print(f"Custom column {opts[0] if opts else ''} already exists", file=sys.stderr)
+                return 1
+            return 0
+        case "add_format" | "set_custom":
+            return 0
+        case "custom_columns":
+            print("1: #cab_audiobook_status (enumeration) Audiobook Status")
+            return 0
+        case _:
+            print(f"fake calibredb: unsupported subcommand {sub!r}", file=sys.stderr)
+            return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())
