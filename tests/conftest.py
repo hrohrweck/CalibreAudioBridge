@@ -7,6 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 
 from calibreaudiobridge.config import CalibreConfig
@@ -131,3 +132,26 @@ def build_oeb(root: Path, chapters: list[tuple[str, list[str]]]) -> Path:
 @pytest.fixture
 def oeb_builder() -> Callable[[Path, list[tuple[str, list[str]]]], Path]:
     return build_oeb
+
+
+def mock_llm_http(response_text: str | None = None) -> httpx.Client:
+    """httpx client against an in-process OpenAI-compatible mock.
+
+    Echoes the last user message (drift-guard-friendly) or returns
+    `response_text` when given.
+    """
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        messages = payload.get("messages", [])
+        content = response_text
+        if content is None:
+            content = messages[-1]["content"] if messages else ""
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"role": "assistant", "content": content}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 10},
+            },
+        )
+
+    return httpx.Client(transport=httpx.MockTransport(handler), base_url="http://mock/v1")
