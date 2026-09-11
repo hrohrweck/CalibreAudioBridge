@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""Fake piper for tests. Controlled by env vars:
+
+FAKE_PIPER_FAIL=1   exit 1 with a stderr message
+FAKE_PIPER_LOG      path to jsonl call log (one {"argv","model","output_file","text"} per line)
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+import wave
+from pathlib import Path
+
+SAMPLE_RATE = 22050
+SAMPLE_WIDTH = 2
+
+
+def _opt(args: list[str], name: str) -> str | None:
+    for i, arg in enumerate(args):
+        if arg == name and i + 1 < len(args):
+            return args[i + 1]
+    return None
+
+
+def main() -> int:
+    args = sys.argv[1:]
+    if os.environ.get("FAKE_PIPER_FAIL"):
+        print("fake piper: synthesis failure", file=sys.stderr)
+        return 1
+    model = _opt(args, "--model")
+    out = _opt(args, "--output_file")
+    if model is None or out is None:
+        print("usage: piper --model M --output_file F < text", file=sys.stderr)
+        return 2
+    text = sys.stdin.read()
+    log = os.environ.get("FAKE_PIPER_LOG")
+    if log:
+        Path(log).parent.mkdir(parents=True, exist_ok=True)
+        with open(log, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"argv": args, "model": model, "output_file": out, "text": text})
+                     + "\n")
+    duration_ms = max(20, len(text) // 2)
+    with wave.open(out, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(SAMPLE_WIDTH)
+        wav.setframerate(SAMPLE_RATE)
+        wav.writeframes(bytes(duration_ms * SAMPLE_RATE * SAMPLE_WIDTH // 1000))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
